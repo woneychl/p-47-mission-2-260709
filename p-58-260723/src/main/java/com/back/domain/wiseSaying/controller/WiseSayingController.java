@@ -1,0 +1,104 @@
+package com.back.domain.wiseSaying.controller;
+
+import com.back.domain.wiseSaying.dto.PageDto;
+import com.back.domain.wiseSaying.entity.WiseSaying;
+import com.back.domain.wiseSaying.service.WiseSayingService;
+import com.back.global.AppContext;
+import com.back.global.Rq;
+
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Optional;
+import java.util.Scanner;
+import java.util.stream.Collectors;
+import java.util.stream.IntStream;
+
+public class WiseSayingController {
+
+    private Scanner sc;
+    private List<WiseSaying> wiseSayings = new ArrayList<>();
+    private int lastId = 0;
+    private WiseSayingService wiseSayingService;
+
+    public WiseSayingController() {
+        this.sc = AppContext.sc;
+        this.wiseSayingService = AppContext.wiseSayingService;
+    }
+
+    public void actionAdd() {
+        System.out.print("명언 : ");
+        String saying = sc.nextLine();
+        System.out.print("작가 : ");
+        String author = sc.nextLine();
+
+
+        WiseSaying wiseSaying = wiseSayingService.write(saying, author);
+
+        System.out.println("%d번 명언이 등록되었습니다.".formatted(wiseSaying.getId()));
+    }
+
+    public void actionList(Rq rq) {
+        String keywordType = rq.getParam("keywordType", "");
+        String keyword = rq.getParam("keyword", "");
+
+        System.out.println("번호 / 작가 / 명언");
+        System.out.println("----------------------");
+
+        int page = rq.getParamAsInt("page", 1);
+        int pageSize = rq.getParamAsInt("pageSize", 5);
+
+        PageDto pageDto = wiseSayingService.findListDesc(keywordType, keyword, pageSize, page);
+
+        List<WiseSaying> wiseSayings = pageDto.getContent();
+        wiseSayings
+                .stream()
+                .forEach(wiseSaying -> System.out.printf("%d / %s / %s%n",
+                        wiseSaying.getId(), wiseSaying.getAuthor(), wiseSaying.getSaying()));
+
+
+        System.out.println("----------------------");
+        // 1 2 3 4 5 ... 마지막 페이지 -> 페이지 개수 알아야 함.
+        // 페이지 개수 => 전체 개수 / 페이지 사이즈, ex) total 10개, size 5개 -> 2개의 페이지 개수
+
+        int totalPageCnt = pageDto.getTotalPageCnt();
+        int currentPageNo = pageDto.getPage();
+
+        String pageMenu = IntStream.rangeClosed(1, totalPageCnt)
+                .mapToObj(i -> i == currentPageNo ? "[%d]".formatted(i) : String.valueOf(i))
+                .collect(Collectors.joining(" / "));
+
+        System.out.println("페이지 : " + pageMenu);
+    }
+    public void actionDelete(Rq rq) {
+
+        int id = rq.getParamAsInt("id", -1);
+        boolean deleted = wiseSayingService.delete(id);
+
+        if(!deleted) {
+            System.out.println("%d번 명언은 존재하지 않습니다.".formatted(id));
+            return;
+        }
+
+        System.out.println("%d번 명언이 삭제되었습니다.".formatted(id));
+
+    }
+    public void actionModify(Rq rq) {
+
+        int id = rq.getParamAsInt("id", -1);
+
+        Optional<WiseSaying> wiseSayingOp  = wiseSayingService.findById(id);
+
+        if(wiseSayingOp.isEmpty()) {
+            System.out.println("%d번 명언은 존재하지 않습니다.".formatted(id));
+            return;
+        }
+        WiseSaying wiseSaying = wiseSayingOp.get();
+
+        System.out.println("명언(기존) : %s".formatted(wiseSaying.getSaying()));
+        String newSaying = sc.nextLine();
+        System.out.println("작가(기존) : %s".formatted(wiseSaying.getAuthor()));
+        String newAuthor = sc.nextLine();
+
+        wiseSayingService.modify(wiseSaying, newSaying, newAuthor);
+    }
+}
